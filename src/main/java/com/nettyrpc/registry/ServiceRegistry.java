@@ -13,21 +13,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 服务注册
+ * ServiceRegistry
  *
  * @author huangyong
  * @author luxiaoxun
+ * @author xxdeng
  */
 public class ServiceRegistry {
 
     private static final Logger logger = LoggerFactory.getLogger(ServiceRegistry.class);
 
-    private CountDownLatch latch = new CountDownLatch(1);
+    private CountDownLatch connectedSignal = new CountDownLatch(1);
 
-    private String registryAddress;
+    private String zkAddress;
 
-    public ServiceRegistry(String registryAddress) {
-        this.registryAddress = registryAddress;
+    public ServiceRegistry(String zkAddress) {
+        this.zkAddress = zkAddress;
     }
 
     public void register(String data) {
@@ -35,7 +36,7 @@ public class ServiceRegistry {
             ZooKeeper zk = connectServer();
             if (zk != null) {
                 AddRootNode(zk); // Add root node if not exist
-                createNode(zk, data);
+                createNode(zk, data); //create EPHEMERAL_SEQUENTIAL node
             }
         }
     }
@@ -43,15 +44,15 @@ public class ServiceRegistry {
     private ZooKeeper connectServer() {
         ZooKeeper zk = null;
         try {
-            zk = new ZooKeeper(registryAddress, Constant.ZK_SESSION_TIMEOUT, new Watcher() {
+            zk = new ZooKeeper(zkAddress, Constant.ZK_SESSION_TIMEOUT, new Watcher() {
                 @Override
                 public void process(WatchedEvent event) {
                     if (event.getState() == Event.KeeperState.SyncConnected) {
-                        latch.countDown();
+                        connectedSignal.countDown();
                     }
                 }
             });
-            latch.await();
+            connectedSignal.await();
         } catch (IOException e) {
             logger.error("", e);
         }

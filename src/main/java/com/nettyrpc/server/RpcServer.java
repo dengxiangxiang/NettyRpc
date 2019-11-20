@@ -54,6 +54,11 @@ public class RpcServer implements ApplicationContextAware, InitializingBean {
         this.serviceRegistry = serviceRegistry;
     }
 
+    /**
+     * started by spring, search serviceBeans from applicationContext via annotation RpcService
+     * @param ctx
+     * @throws BeansException
+     */
     @Override
     public void setApplicationContext(ApplicationContext ctx) throws BeansException {
         Map<String, Object> serviceBeanMap = ctx.getBeansWithAnnotation(RpcService.class);
@@ -92,6 +97,12 @@ public class RpcServer implements ApplicationContextAware, InitializingBean {
         threadPoolExecutor.submit(task);
     }
 
+    /**
+     * add interface-serviceBean pair manually
+     * @param interfaceName
+     * @param serviceBean
+     * @return
+     */
     public RpcServer addService(String interfaceName, Object serviceBean) {
         if (!handlerMap.containsKey(interfaceName)) {
             logger.info("Loading service: {}", interfaceName);

@@ -19,20 +19,25 @@ import org.slf4j.LoggerFactory;
  *
  * @author huangyong
  * @author luxiaoxun
+ * @author xxdeng
  */
 public class ServiceDiscovery {
 
     private static final Logger logger = LoggerFactory.getLogger(ServiceDiscovery.class);
 
-    private CountDownLatch latch = new CountDownLatch(1);
+    private CountDownLatch connectedSignal = new CountDownLatch(1);
 
     private volatile List<String> dataList = new ArrayList<>();
 
-    private String registryAddress;
+    private String zkAddress;
     private ZooKeeper zookeeper;
 
-    public ServiceDiscovery(String registryAddress) {
-        this.registryAddress = registryAddress;
+    /**
+     *
+     * @param zkAddress
+     */
+    public ServiceDiscovery(String zkAddress) {
+        this.zkAddress = zkAddress;
         zookeeper = connectServer();
         if (zookeeper != null) {
             watchNode(zookeeper);
@@ -57,15 +62,19 @@ public class ServiceDiscovery {
     private ZooKeeper connectServer() {
         ZooKeeper zk = null;
         try {
-            zk = new ZooKeeper(registryAddress, Constant.ZK_SESSION_TIMEOUT, new Watcher() {
+            //Session establishment is asynchronous. This constructor will initiate
+            //connection to the server and return immediately - potentially (usually)
+            //before the session is fully established.  So we wait the SyncConnected event
+            //and then return.
+            zk = new ZooKeeper(zkAddress, Constant.ZK_SESSION_TIMEOUT, new Watcher() {
                 @Override
                 public void process(WatchedEvent event) {
                     if (event.getState() == Event.KeeperState.SyncConnected) {
-                        latch.countDown();
+                        connectedSignal.countDown();
                     }
                 }
             });
-            latch.await();
+            connectedSignal.await();
         } catch (IOException | InterruptedException e) {
             logger.error("", e);
         }
@@ -74,6 +83,7 @@ public class ServiceDiscovery {
 
     private void watchNode(final ZooKeeper zk) {
         try {
+            // set watcher, listen NodeChildrenChanged event. Thread triggered by zk.
             List<String> nodeList = zk.getChildren(Constant.ZK_REGISTRY_PATH, new Watcher() {
                 @Override
                 public void process(WatchedEvent event) {
@@ -93,7 +103,7 @@ public class ServiceDiscovery {
             logger.debug("Service discovery triggered updating connected server node.");
             UpdateConnectedServer();
         } catch (KeeperException | InterruptedException e) {
-            logger.error("", e);
+            logger.error(e.getMessage(), e);
         }
     }
 
